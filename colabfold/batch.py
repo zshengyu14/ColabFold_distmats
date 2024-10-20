@@ -545,6 +545,12 @@ def predict_structure(
             if save_all:
                 with files.get("all","pickle").open("wb") as handle:
                     pickle.dump(result, handle)
+                os.makedirs(f'{distmat_dir}/{tag}_distribution',exist_ok=True)
+                for i in range(seq_len):
+                    for j in range(i+1,seq_len):
+                        prob=pd.DataFrame(probs[i][j]).rename(columns={0:'probability'})
+                        prob.index=[f'dist<{bin_edges[0]}']+[f'{bin_edges[i]}<dist<{bin_edges[i+1]}' for i in range(0,bin_num-2)]+[f'dist>{bin_edges[-1]}']
+                        prob.to_csv(f'{distmat_dir}/{tag}_distribution/{i+1}_{j+1}.csv')
             if save_single_representations:
                 np.save(files.get("single_repr","npy"),result["representations"]["single"])
             if save_pair_representations:
