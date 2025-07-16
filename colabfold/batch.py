@@ -1678,7 +1678,7 @@ def run(
                     random_seed=random_seed,
                     num_seeds=num_seeds,
                     save_all=save_all,
-                    save_presentations=save_representations,
+                    save_representations=save_representations,
                     save_recycles=save_recycles,
                 )
                 result_files += results["result_files"]
