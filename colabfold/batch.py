@@ -349,8 +349,7 @@ def predict_structure(
     prediction_callback: Callable[[Any, Any, Any, Any, Any], Any] = None,
     use_gpu_relax: bool = False,
     save_all: bool = False,
-    save_single_representations: bool = False,
-    save_pair_representations: bool = False,
+    save_representations: bool = False,
     save_recycles: bool = False,
 ):
     """Predicts structure using AlphaFold for the given sequence."""
@@ -423,7 +422,7 @@ def predict_structure(
                             pickle.dump(result, handle)
                     del unrelaxed_protein
 
-            return_representations = save_all or save_single_representations or save_pair_representations
+            return_representations = save_all or save_representations
 
             # predict
             result, recycles = \
@@ -551,10 +550,11 @@ def predict_structure(
                         prob=pd.DataFrame(probs[i][j]).rename(columns={0:'probability'})
                         prob.index=[f'dist<{bin_edges[0]}']+[f'{bin_edges[i]}<dist<{bin_edges[i+1]}' for i in range(0,bin_num-2)]+[f'dist>{bin_edges[-1]}']
                         prob.to_csv(f'{distmat_dir}/{tag}_distribution/{i+1}_{j+1}.csv')
-            if save_single_representations:
+            if save_representations:
                 np.save(files.get("single_repr","npy"),result["representations"]["single"])
-            if save_pair_representations:
+                np.save(files.get("structure_repr","npy"),result["representations"]["structure_module"])
                 np.save(files.get("pair_repr","npy"),result["representations"]["pair"])
+
 
             # write an easy-to-use format (pAE and pLDDT)
             with files.get("scores","json").open("w") as handle:
@@ -1334,8 +1334,7 @@ def run(
     recompile_padding: Union[int, float] = 10,
     zip_results: bool = False,
     prediction_callback: Callable[[Any, Any, Any, Any, Any], Any] = None,
-    save_single_representations: bool = False,
-    save_pair_representations: bool = False,
+    save_representations: bool = False,
     jobname_prefix: Optional[str] = None,
     save_all: bool = False,
     save_recycles: bool = False,
@@ -1679,8 +1678,7 @@ def run(
                     random_seed=random_seed,
                     num_seeds=num_seeds,
                     save_all=save_all,
-                    save_single_representations=save_single_representations,
-                    save_pair_representations=save_pair_representations,
+                    save_representations=save_representations,
                     save_recycles=save_recycles,
                 )
                 result_files += results["result_files"]
@@ -2019,16 +2017,10 @@ def main():
         help="Save all intermediate predictions at each recycle iteration.",
     )
     output_group.add_argument(
-        "--save-single-representations",
+        "--save-representations",
         default=False,
         action="store_true",
         help="Save the single representation embeddings of all models.",
-    )
-    output_group.add_argument(
-        "--save-pair-representations",
-        default=False,
-        action="store_true",
-        help="Save the pair representation embeddings of all models.",
     )
     output_group.add_argument(
         "--overwrite-existing-results",
@@ -2150,8 +2142,8 @@ def main():
         stop_at_score=args.stop_at_score,
         recompile_padding=args.recompile_padding,
         zip_results=args.zip,
-        save_single_representations=args.save_single_representations,
-        save_pair_representations=args.save_pair_representations,
+        save_all_representations=args.save_all,
+        save_representations=args.save_representations,
         use_dropout=args.use_dropout,
         max_seq=args.max_seq,
         max_extra_seq=args.max_extra_seq,
