@@ -351,6 +351,7 @@ def predict_structure(
     save_all: bool = False,
     save_representations: bool = False,
     save_recycles: bool = False,
+    save_distogram: bool = True,
 ):
     """Predicts structure using AlphaFold for the given sequence."""
     mean_scores = []
@@ -473,72 +474,72 @@ def predict_structure(
             files.get("unrelaxed","pdb").write_text(protein_lines)
             unrelaxed_pdb_lines.append(protein_lines)
 
+            if save_distogram:
+                distmat_dir=f"{files.result_dir}/{files.prefix}_distmat"
+                os.makedirs(f'{distmat_dir}',exist_ok=True)
 
-            distmat_dir=f"{files.result_dir}/{files.prefix}_distmat"
-            os.makedirs(f'{distmat_dir}',exist_ok=True)
+                bin_num=64
+                probs=scipy.special.softmax(np.asarray( 
+                    result["distogram"]['logits'])[:seq_len,:seq_len,:],axis=-1)
+                bin_edges=np.linspace(
+                        2.3125,  21.6875,bin_num - 1)
+                step=bin_edges[1]-bin_edges[0]
+                bin_centers=bin_edges-step/2.0
+                bin_centers=np.concatenate([bin_centers, [bin_centers[-1] + step]], axis=0)
+                mean=np.sum(probs * bin_centers, axis=-1)
+                #sq_centers=np.square(bin_centers)
+                #std=np.sqrt(np.sum(probs * sq_centers, axis=-1)-mean*mean)
+                std=np.sqrt(np.sum(np.square(mean[...,None]-bin_centers)*probs,axis=-1))
+                
+                prob_7=np.log10(np.sum(probs[...,:16], axis=-1))
+                prob_7=pd.DataFrame(prob_7).rename(columns={i:i+1 for i in range(seq_len)})
+                prob_7.index=[i+1 for i in range(seq_len)]
+                ax=sns.heatmap(prob_7,cmap='YlGnBu')
+                plt.xlabel('residue i') 
+                plt.ylabel('residue j') 
+                cbar = ax.collections[0].colorbar
+                cbar.set_label(r'log$_{10}$p(distance < 7Å)')
+                plt.savefig(f'{distmat_dir}/{tag}_7A_prob_log.png',dpi=800)
+                plt.close()
 
-            bin_num=64
-            probs=scipy.special.softmax(np.asarray( 
-                result["distogram"]['logits'])[:seq_len,:seq_len,:],axis=-1)
-            bin_edges=np.linspace(
-                    2.3125,  21.6875,bin_num - 1)
-            step=bin_edges[1]-bin_edges[0]
-            bin_centers=bin_edges-step/2.0
-            bin_centers=np.concatenate([bin_centers, [bin_centers[-1] + step]], axis=0)
-            mean=np.sum(probs * bin_centers, axis=-1)
-            #sq_centers=np.square(bin_centers)
-            #std=np.sqrt(np.sum(probs * sq_centers, axis=-1)-mean*mean)
-            std=np.sqrt(np.sum(np.square(mean[...,None]-bin_centers)*probs,axis=-1))
-            
-            prob_7=np.log10(np.sum(probs[...,:16], axis=-1))
-            prob_7=pd.DataFrame(prob_7).rename(columns={i:i+1 for i in range(seq_len)})
-            prob_7.index=[i+1 for i in range(seq_len)]
-            ax=sns.heatmap(prob_7,cmap='YlGnBu')
-            plt.xlabel('residue i') 
-            plt.ylabel('residue j') 
-            cbar = ax.collections[0].colorbar
-            cbar.set_label(r'log$_{10}$p(distance < 7Å)')
-            plt.savefig(f'{distmat_dir}/{tag}_7A_prob_log.png',dpi=800)
-            plt.close()
+                prob_14=np.log10(np.sum(probs[...,:32], axis=-1))
+                prob_14=pd.DataFrame(prob_14).rename(columns={i:i+1 for i in range(seq_len)})
+                prob_14.index=[i+1 for i in range(seq_len)]
+                ax=sns.heatmap(prob_14,cmap='YlGnBu')
+                plt.xlabel('residue i') 
+                plt.ylabel('residue j') 
+                cbar = ax.collections[0].colorbar
+                cbar.set_label(r'log$_{10}$p(distance < 12Å)')
+                plt.savefig(f'{distmat_dir}/{tag}_12A_prob_log.png',dpi=800)
+                plt.close()
 
-            prob_14=np.log10(np.sum(probs[...,:32], axis=-1))
-            prob_14=pd.DataFrame(prob_14).rename(columns={i:i+1 for i in range(seq_len)})
-            prob_14.index=[i+1 for i in range(seq_len)]
-            ax=sns.heatmap(prob_14,cmap='YlGnBu')
-            plt.xlabel('residue i') 
-            plt.ylabel('residue j') 
-            cbar = ax.collections[0].colorbar
-            cbar.set_label(r'log$_{10}$p(distance < 12Å)')
-            plt.savefig(f'{distmat_dir}/{tag}_12A_prob_log.png',dpi=800)
-            plt.close()
+                prob_14=np.sum(probs[...,:32], axis=-1)
+                prob_14=pd.DataFrame(prob_14).rename(columns={i:i+1 for i in range(seq_len)})
+                prob_14.index=[i+1 for i in range(seq_len)]
+                prob_14.to_csv(f'{distmat_dir}/{tag}_12A_prob.csv')
+                ax=sns.heatmap(prob_14,cmap='YlGnBu')
+                plt.xlabel('residue i') 
+                plt.ylabel('residue j') 
+                cbar = ax.collections[0].colorbar
+                cbar.set_label(r'p(distance < 12Å)')
+                plt.savefig(f'{distmat_dir}/{tag}_12A_prob.png',dpi=800)
+                plt.close()
 
-            prob_14=np.sum(probs[...,:32], axis=-1)
-            prob_14=pd.DataFrame(prob_14).rename(columns={i:i+1 for i in range(seq_len)})
-            prob_14.index=[i+1 for i in range(seq_len)]
-            prob_14.to_csv(f'{distmat_dir}/{tag}_12A_prob.csv')
-            ax=sns.heatmap(prob_14,cmap='YlGnBu')
-            plt.xlabel('residue i') 
-            plt.ylabel('residue j') 
-            cbar = ax.collections[0].colorbar
-            cbar.set_label(r'p(distance < 12Å)')
-            plt.savefig(f'{distmat_dir}/{tag}_12A_prob.png',dpi=800)
-            plt.close()
+                mean=pd.DataFrame(mean).rename(columns={i:i+1 for i in range(seq_len)})
+                mean.index=[i+1 for i in range(seq_len)]
+                std=pd.DataFrame(std).rename(columns={i:i+1 for i in range(seq_len)})
+                std.index=[i+1 for i in range(seq_len)]
+                mean.to_csv(f'{distmat_dir}/{tag}_mean.csv')
+                std.to_csv(f'{distmat_dir}/{tag}_std.csv')
+                np.save(f'{distmat_dir}/{tag}_prob_distributions.npy',probs)
 
-            mean=pd.DataFrame(mean).rename(columns={i:i+1 for i in range(seq_len)})
-            mean.index=[i+1 for i in range(seq_len)]
-            std=pd.DataFrame(std).rename(columns={i:i+1 for i in range(seq_len)})
-            std.index=[i+1 for i in range(seq_len)]
-            mean.to_csv(f'{distmat_dir}/{tag}_mean.csv')
-            std.to_csv(f'{distmat_dir}/{tag}_std.csv')
-            np.save(f'{distmat_dir}/{tag}_prob_distributions.npy',probs)
-
-            ax=sns.heatmap(mean,cmap='YlGnBu')
-            plt.xlabel('residue i') 
-            plt.ylabel('residue j') 
-            cbar = ax.collections[0].colorbar
-            cbar.set_label(r'distance (Å)')
-            plt.savefig(f'{distmat_dir}/{tag}_distmat.png',dpi=800)
-            plt.close()
+                ax=sns.heatmap(mean,cmap='YlGnBu')
+                plt.xlabel('residue i') 
+                plt.ylabel('residue j') 
+                cbar = ax.collections[0].colorbar
+                cbar.set_label(r'distance (Å)')
+                plt.savefig(f'{distmat_dir}/{tag}_distmat.png',dpi=800)
+                plt.close()
 
             # save raw outputs
             if save_all:
@@ -1340,6 +1341,7 @@ def run(
     save_recycles: bool = False,
     use_dropout: bool = False,
     use_gpu_relax: bool = False,
+    save_distogram: bool = True,
     stop_at_score: float = 100,
     dpi: int = 200,
     max_seq: Optional[int] = None,
@@ -1680,6 +1682,7 @@ def run(
                     save_all=save_all,
                     save_representations=save_representations,
                     save_recycles=save_recycles,
+                    save_distogram=save_distogram,
                 )
                 result_files += results["result_files"]
                 ranks.append(results["rank"])
@@ -2023,6 +2026,12 @@ def main():
         help="Save the single representation embeddings of all models.",
     )
     output_group.add_argument(
+        "--save-distogram",
+        default=True,
+        action="store_true",
+        help="Save the distance matrix (distogram) of the predicted structures.",
+    )
+    output_group.add_argument(
         "--overwrite-existing-results",
         default=False,
         action="store_true",
@@ -2144,6 +2153,7 @@ def main():
         zip_results=args.zip,
         save_all_representations=args.save_all,
         save_representations=args.save_representations,
+        save_distogram=args.save_distogram,
         use_dropout=args.use_dropout,
         max_seq=args.max_seq,
         max_extra_seq=args.max_extra_seq,
